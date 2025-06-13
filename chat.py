@@ -13,27 +13,44 @@ class OllamaBot:
         self.model = model
         self.personality = personality
 
-    def generate_response(self, system_prompt: str, conversation_history: str, timeout: int = 30) -> str:
-        """Generate a response from the bot using Ollama API"""
+    def generate_response_stream(self, system_prompt: str, conversation_history: str, timeout: int = 30):
+        """Generate a streaming response from the bot using Ollama API"""
         full_prompt = f"{system_prompt}\n\nYour personality: {self.personality}\n\nConversation so far:\n{conversation_history}\n\n{self.name}:"
 
         payload = {
             "model": self.model,
             "prompt": full_prompt,
-            "stream": False
+            "stream": True
         }
 
         try:
             response = requests.post(
                 f"{self.ollama_url}/api/generate",
                 json=payload,
-                timeout=timeout
+                timeout=timeout,
+                stream=True
             )
             response.raise_for_status()
-            result = response.json()
-            return result.get("response", "").strip()
+
+            full_response = ""
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        data = json.loads(line.decode('utf-8'))
+                        if 'response' in data:
+                            token = data['response']
+                            print(token, end='', flush=True)
+                            full_response += token
+                        if data.get('done', False):
+                            break
+                    except json.JSONDecodeError:
+                        continue
+
+            return full_response.strip()
         except requests.exceptions.RequestException as e:
-            return f"[Error: Could not get response from {self.name}]"
+            error_msg = f"[Error: Could not get response from {self.name}]"
+            print(error_msg)
+            return error_msg
 
 class ChatRoom:
     def __init__(self, config_path: str = "config.json"):
@@ -92,59 +109,51 @@ class ChatRoom:
         """Start the round-table discussion"""
         print(f"\n🎯 Discussion Topic: {topic}")
         self.print_separator()
-        print("Starting round-table discussion...\n")
+        print("Starting continuous round-table discussion...")
+        print("Press Ctrl+D to exit gracefully\n")
 
         # Add topic to conversation history
         self.add_to_history("Moderator", f"Today's discussion topic is: {topic}")
 
         rounds = 0
-        max_rounds = self.config.get("max_rounds", 10)
         timeout = self.config.get("response_timeout", 30)
 
-        while rounds < max_rounds:
-            rounds += 1
-            print(f"--- Round {rounds} ---\n")
+        try:
+            while True:
+                rounds += 1
+                print(f"--- Round {rounds} ---\n")
 
-            for bot in self.bots:
-                print(f"🤖 {bot.name} is thinking...")
+                for bot in self.bots:
+                    print(f"🤖 {bot.name}: ", end='', flush=True)
 
-                # Get current conversation context
-                context = self.get_conversation_context()
+                    # Get current conversation context
+                    context = self.get_conversation_context()
 
-                # Generate response
-                start_time = time.time()
-                response = bot.generate_response(
-                    self.config["system_prompt"],
-                    context,
-                    timeout
-                )
-                response_time = time.time() - start_time
+                    # Generate streaming response
+                    start_time = time.time()
+                    response = bot.generate_response_stream(
+                        self.config["system_prompt"],
+                        context,
+                        timeout
+                    )
+                    response_time = time.time() - start_time
 
-                # Display the response
-                print(f"💬 {bot.name}: {response}")
-                print(f"   (Response time: {response_time:.1f}s)")
-                print()
+                    print(f"\n   (Response time: {response_time:.1f}s)")
+                    print()
 
-                # Add to conversation history
-                self.add_to_history(bot.name, response)
+                    # Add to conversation history
+                    self.add_to_history(bot.name, response)
 
-                # Small delay between responses
-                time.sleep(1)
+                    # Small delay between responses
+                    time.sleep(1)
 
-            self.print_separator()
+                self.print_separator()
 
-            # Ask if user wants to continue
-            if rounds < max_rounds:
-                try:
-                    continue_chat = input("Continue to next round? (y/n, or just press Enter for yes): ").strip().lower()
-                    if continue_chat in ['n', 'no', 'quit', 'exit']:
-                        break
-                except KeyboardInterrupt:
-                    print("\n\nDiscussion interrupted by user.")
-                    break
-
-        print(f"\n🏁 Discussion completed after {rounds} rounds!")
-        print("Thank you for hosting this AI round-table discussion!")
+        except EOFError:
+            print(f"\n🏁 Discussion completed after {rounds} rounds!")
+            print("Thank you for hosting this AI round-table discussion!")
+        except KeyboardInterrupt:
+            print(f"\n\nDiscussion interrupted after {rounds} rounds. Goodbye!")
 
 def main():
     """Main function to run the chat application"""
@@ -175,12 +184,13 @@ def main():
     except KeyboardInterrupt:
         print("\nExiting...")
         sys.exit(0)
+    except EOFError:
+        print("\nExiting...")
+        sys.exit(0)
 
     # Start the discussion
     try:
         chat_room.start_discussion(topic)
-    except KeyboardInterrupt:
-        print("\n\nDiscussion interrupted by user. Goodbye!")
     except Exception as e:
         print(f"\nAn error occurred: {e}")
 
