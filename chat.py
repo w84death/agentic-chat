@@ -42,14 +42,21 @@ class OllamaBot:
                 if line:
                     try:
                         data = json.loads(line.decode('utf-8'))
-                        if 'response' in data:
+                        if 'response' in data and data['response']:
                             token = data['response']
                             print(token, end='', flush=True)
                             full_response += token
+                        # Only break after we've processed any final response tokens
                         if data.get('done', False):
                             break
                     except json.JSONDecodeError:
                         continue
+
+            # Ensure output is flushed and we have a newline
+            print('', flush=True)
+
+            # Small delay to ensure all streaming is complete
+            time.sleep(0.1)
 
             return full_response.strip()
         except requests.exceptions.RequestException as e:
@@ -120,7 +127,7 @@ class ChatRoom:
             return
 
         # Clean the text for TTS
-        clean_text = text.replace("[Error:", "Error:").replace("]", "")
+        clean_text = text.replace("[Error:", "Error:").replace("]", "").replace("*", "")
         speed = int(150 * self.tts_speed)
 
         # Use espeak-ng to speak directly
@@ -185,6 +192,12 @@ class ChatRoom:
             timeout
         )
         response_time = time.time() - start_time
+
+        # Ensure response is complete before returning
+        if response and not response.startswith("[Error:"):
+            # Small buffer to ensure streaming is fully complete
+            time.sleep(0.2)
+
         return response, response_time
 
     def start_discussion(self, topic: str):
@@ -215,19 +228,19 @@ class ChatRoom:
                         # Wait for pre-generated response
                         try:
                             response, response_time = future_response.result(timeout=1)
-                            print(f"\n   (Response time: {response_time:.1f}s)")
+                            print(f"   (Response time: {response_time:.1f}s)")
                         except concurrent.futures.TimeoutError:
-                            print(f"\n   ⚠️  Pre-generation timed out, generating now...")
+                            print(f"   ⚠️  Pre-generation timed out, generating now...")
                             print(f"🤖 {bot.name}: ", end='', flush=True)
                             context = self.get_conversation_context()
                             response, response_time = self.generate_bot_response(bot, context, timeout)
-                            print(f"\n   (Response time: {response_time:.1f}s)")
+                            print(f"   (Response time: {response_time:.1f}s)")
                     else:
                         # Generate response normally
                         print(f"🤖 {bot.name}: ", end='', flush=True)
                         context = self.get_conversation_context()
                         response, response_time = self.generate_bot_response(bot, context, timeout)
-                        print(f"\n   (Response time: {response_time:.1f}s)")
+                        print(f"   (Response time: {response_time:.1f}s)")
 
                     # Add to conversation history
                     self.add_to_history(bot.name, response)
@@ -259,7 +272,7 @@ class ChatRoom:
                     self.wait_for_tts_completion()
 
                     # Print next bot's name in preparation
-                    print(f"\n🤖 {next_bot.name}: ", end='', flush=True)
+                    print(f"\n\n🤖 {next_bot.name}: ", end='', flush=True)
 
                     # Move to next bot
                     bot_index = next_bot_index
