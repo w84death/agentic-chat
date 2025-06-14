@@ -112,9 +112,7 @@ class ChatRoom:
             "timestamp": time.time()
         })
 
-    def print_separator(self):
-        """Print a visual separator"""
-        print("-" * 80)
+
 
     def speak_text(self, text: str, bot_name: str = ""):
         """Use espeak-ng to speak the given text"""
@@ -133,7 +131,7 @@ class ChatRoom:
             clean_text
         ]
 
-        subprocess.run(cmd, capture_output=True, timeout=30)
+        subprocess.run(cmd, capture_output=True)
 
     def tts_worker(self):
         """Worker thread for processing TTS queue"""
@@ -192,98 +190,89 @@ class ChatRoom:
     def start_discussion(self, topic: str):
         """Start the round-table discussion"""
         print(f"\n🎯 Discussion Topic: {topic}")
-        self.print_separator()
-        print("Starting continuous round-table discussion...")
-        print("Press Ctrl+D to exit gracefully\n")
+        print("Starting continuous discussion...")
+        print("Press Ctrl+C to exit\n")
 
         # Add topic to conversation history
         self.add_to_history("Moderator", f"Today's discussion topic is: {topic}")
 
-        rounds = 0
         timeout = self.config.get("response_timeout", 30)
 
         # Start TTS thread
         self.start_tts_thread()
 
         try:
-            while True:
-                rounds += 1
-                print(f"--- Round {rounds} ---\n")
+            # Use ThreadPoolExecutor for continuous parallel generation
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future_response = None
+                bot_index = 0
 
-                # Use ThreadPoolExecutor for parallel generation
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future_response = None
+                while True:
+                    bot = self.bots[bot_index]
 
-                    for i, bot in enumerate(self.bots):
-                        # Check if we have a pre-generated response
-                        if future_response is not None:
-                            # Wait for pre-generated response
-                            try:
-                                response, response_time = future_response.result(timeout=1)
-                                print(f"\n   (Response time: {response_time:.1f}s)")
-                            except concurrent.futures.TimeoutError:
-                                print(f"\n   ⚠️  Pre-generation timed out, generating now...")
-                                print(f"🤖 {bot.name}: ", end='', flush=True)
-                                context = self.get_conversation_context()
-                                response, response_time = self.generate_bot_response(bot, context, timeout)
-                                print(f"\n   (Response time: {response_time:.1f}s)")
-                        else:
-                            # Generate response normally
+                    # Check if we have a pre-generated response
+                    if future_response is not None:
+                        # Wait for pre-generated response
+                        try:
+                            response, response_time = future_response.result(timeout=1)
+                            print(f"\n   (Response time: {response_time:.1f}s)")
+                        except concurrent.futures.TimeoutError:
+                            print(f"\n   ⚠️  Pre-generation timed out, generating now...")
                             print(f"🤖 {bot.name}: ", end='', flush=True)
                             context = self.get_conversation_context()
                             response, response_time = self.generate_bot_response(bot, context, timeout)
                             print(f"\n   (Response time: {response_time:.1f}s)")
+                    else:
+                        # Generate response normally
+                        print(f"🤖 {bot.name}: ", end='', flush=True)
+                        context = self.get_conversation_context()
+                        response, response_time = self.generate_bot_response(bot, context, timeout)
+                        print(f"\n   (Response time: {response_time:.1f}s)")
 
-                        # Add to conversation history
-                        self.add_to_history(bot.name, response)
+                    # Add to conversation history
+                    self.add_to_history(bot.name, response)
 
-                        # Queue TTS for current response
-                        if response and not response.startswith("[Error:"):
-                            print("   🔊 Speaking...")
-                            self.queue_tts(response, bot.name)
+                    # Queue TTS for current response
+                    if response and not response.startswith("[Error:"):
+                        print("   🔊 Speaking...")
+                        self.queue_tts(response, bot.name)
 
-                        # Start generating next bot's response in parallel
-                        if i < len(self.bots) - 1:
-                            next_bot = self.bots[i + 1]
-                            print(f"   ⏳ Pre-generating response for {next_bot.name}...")
+                    # Determine next bot (circular)
+                    next_bot_index = (bot_index + 1) % len(self.bots)
+                    next_bot = self.bots[next_bot_index]
 
-                            # Get updated context for next bot
-                            next_context = self.get_conversation_context()
+                    # Start generating next bot's response in parallel
+                    print(f"   ⏳ Pre-generating response for {next_bot.name}...")
 
-                            # Submit next generation task
-                            future_response = executor.submit(
-                                self.generate_bot_response,
-                                next_bot,
-                                next_context,
-                                timeout
-                            )
+                    # Get updated context for next bot
+                    next_context = self.get_conversation_context()
 
-                            # Wait for current TTS to complete before next bot speaks
-                            self.wait_for_tts_completion()
+                    # Submit next generation task
+                    future_response = executor.submit(
+                        self.generate_bot_response,
+                        next_bot,
+                        next_context,
+                        timeout
+                    )
 
-                            # Print next bot's name in preparation
-                            print(f"\n🤖 {next_bot.name}: ", end='', flush=True)
-                        else:
-                            # Wait for last bot's TTS to complete
-                            self.wait_for_tts_completion()
-                            future_response = None
+                    # Wait for current TTS to complete before next bot speaks
+                    self.wait_for_tts_completion()
 
-                        print()
+                    # Print next bot's name in preparation
+                    print(f"\n🤖 {next_bot.name}: ", end='', flush=True)
 
-                        # Small delay between bots
-                        if i < len(self.bots) - 1:
-                            time.sleep(0.2)
+                    # Move to next bot
+                    bot_index = next_bot_index
 
-                self.print_separator()
+                    # Small delay between bots
+                    time.sleep(0.2)
 
-        except EOFError:
-            print(f"\n🏁 Discussion completed after {rounds} rounds!")
-            print("Thank you for hosting this AI round-table discussion!")
         except KeyboardInterrupt:
-            print(f"\n\nDiscussion interrupted after {rounds} rounds. Goodbye!")
+            print(f"\n\nDiscussion interrupted. Shutting down gracefully...")
         finally:
             # Stop TTS thread
             self.stop_tts_thread()
+            print("Goodbye!")
 
 def main():
     """Main function to run the chat application"""
@@ -319,9 +308,6 @@ def main():
             print("No topic provided. Exiting.")
             sys.exit(1)
     except KeyboardInterrupt:
-        print("\nExiting...")
-        sys.exit(0)
-    except EOFError:
         print("\nExiting...")
         sys.exit(0)
 

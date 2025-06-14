@@ -22,5 +22,5 @@
   ],
   "response_timeout": 60,
   "tts_enabled": true,
-  "tts_speed": 1.5
+  "tts_speed": 1.25
 }
