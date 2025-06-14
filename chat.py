@@ -4,6 +4,8 @@ import json
 import requests
 import time
 import sys
+import subprocess
+import os
 from typing import Dict, List, Any
 
 class OllamaBot:
@@ -57,6 +59,9 @@ class ChatRoom:
         self.config = self.load_config(config_path)
         self.bots = self.initialize_bots()
         self.conversation_history = []
+        self.tts_enabled = self.config.get("tts_enabled", True)
+        self.tts_voice = self.config.get("tts_voice", "en-US")
+        self.tts_speed = self.config.get("tts_speed", 1.0)
 
     def load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from JSON file"""
@@ -105,6 +110,25 @@ class ChatRoom:
         """Print a visual separator"""
         print("-" * 80)
 
+    def speak_text(self, text: str, bot_name: str = ""):
+        """Use espeak-ng to speak the given text"""
+        if not self.tts_enabled:
+            return
+
+        # Clean the text for TTS
+        clean_text = text.replace("[Error:", "Error:").replace("]", "")
+        speed = int(150 * self.tts_speed)
+
+        # Use espeak-ng to speak directly
+        cmd = [
+            "espeak-ng",
+            "-v", "en-US",
+            "-s", str(speed),
+            clean_text
+        ]
+
+        subprocess.run(cmd, capture_output=True, timeout=30)
+
     def start_discussion(self, topic: str):
         """Start the round-table discussion"""
         print(f"\n🎯 Discussion Topic: {topic}")
@@ -139,6 +163,12 @@ class ChatRoom:
                     response_time = time.time() - start_time
 
                     print(f"\n   (Response time: {response_time:.1f}s)")
+
+                    # Speak the response using TTS
+                    if response and not response.startswith("[Error:"):
+                        print("   🔊 Speaking...")
+                        self.speak_text(response, bot.name)
+
                     print()
 
                     # Add to conversation history
@@ -173,6 +203,13 @@ def main():
     print("Participants:")
     for bot in chat_room.bots:
         print(f"  🤖 {bot.name} ({bot.model}) - {bot.personality[:50]}...")
+    print()
+
+    # Display TTS status
+    if chat_room.tts_enabled:
+        print(f"🔊 TTS: Enabled (Voice: {chat_room.tts_voice})")
+    else:
+        print("🔇 TTS: Disabled")
     print()
 
     # Get discussion topic from user

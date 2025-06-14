@@ -21,5 +21,6 @@
     }
   ],
   "response_timeout": 60,
-  "max_rounds": 10
+  "tts_enabled": true,
+  "tts_speed": 1.5
 }
