@@ -1,0 +1,63 @@
+/* Main containers */
+#topic-container {
+  height: 3;
+  background: $boost;
+  border: solid $primary;
+  padding: 0 1;
+}
+
+#topic-label {
+  content-align: center middle;
+  text-style: bold;
+}
+
+#chat-container {
+  border: solid $primary;
+  padding: 1;
+  height: 1fr;
+}
+
+#chat-log {
+  scrollbar-size: 1 1;
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
+
+#input-container {
+  height: 3;
+  dock: bottom;
+  padding: 0 1;
+  background: $surface;
+}
+
+#topic-input {
+  width: 1fr;
+  margin: 0 1 0 0;
+}
+
+#start-button {
+  width: 12;
+  margin: 0 1;
+}
+
+#status {
+  dock: bottom;
+  height: 1;
+  background: $panel;
+  color: $text-muted;
+  padding: 0 1;
+}
+
+/* Text styles */
+.bot-name {
+  text-style: bold;
+  color: $success;
+}
+
+.timestamp {
+  color: $text-muted;
+}
+
+.error {
+  color: $error;
+}

@@ -1,6 +1,11 @@
 # AI Round-Table Discussion
 
-A simple terminal application that hosts a chat between different AI models powered by local Ollama instances. The bots participate in a round-table discussion, taking turns to respond to a topic you provide.
+A terminal application that hosts a chat between different AI models powered by local Ollama instances. The bots participate in a round-table discussion, taking turns to respond to a topic you provide.
+
+Available in two versions:
+- **CLI version** (`chat.py`) - Simple command-line interface
+- **TUI version** (`chat_tui.py`) - Modern text user interface with Textual
+  - Styles are defined in `chat_tui.css` for easy customization
 
 ## Features
 
@@ -9,7 +14,13 @@ A simple terminal application that hosts a chat between different AI models powe
 - Round-table discussion format
 - Conversation history tracking
 - **Session logging** - All conversations are saved to timestamped text files
-- Simple terminal interface
+- **TUI version features:**
+  - Fixed topic header at the top
+  - Scrollable chat window with word-wrapping
+  - Start/Stop controls
+  - Real-time status updates
+  - Keyboard shortcuts (q: quit, s: toggle auto-scroll, p: pause/resume, u: update topic)
+  - **Topic updates during discussion** - Pause and add new directions while maintaining context
 
 ## Prerequisites
 
@@ -24,6 +35,51 @@ A simple terminal application that hosts a chat between different AI models powe
 
 3. **Python 3.7+** with pip
 
+## Installation
+
+1. Clone the repository or download the files
+2. Install Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Ensure all files are in the same directory:
+   - `chat.py` (CLI version)
+   - `chat_tui.py` (TUI version)
+   - `chat_tui.css` (TUI styles)
+   - `config.json` (bot configuration)
+
+## Usage
+
+### CLI Version (Original)
+```bash
+python chat.py
+```
+
+### TUI Version (New)
+```bash
+python chat_tui.py
+```
+
+The TUI version provides a more interactive experience with:
+- Topic displayed at the top of the screen
+- Scrollable chat area with color-coded messages and word-wrapping
+- Input field and Start/Stop button
+- Real-time status updates
+- Keyboard shortcuts for control
+- **Mid-discussion topic updates**: Press 'p' to pause, then 'u' to add new topic directions
+
+### Using Topic Updates (TUI only)
+
+During a discussion, you can steer the conversation in new directions:
+
+1. Press `p` to pause the discussion
+2. Press `u` to show the topic update input
+3. Enter your new topic direction or expansion
+4. Press Enter or click "Add Topic"
+5. Press `p` again to resume with the new context
+
+The bots will maintain their conversation history and incorporate the new direction seamlessly.
+
 ## Session Logs
 
 All conversations are automatically saved to the `chat_logs/` directory with filenames like:
@@ -34,7 +90,53 @@ Each log file contains:
 - Timestamped messages from each bot
 - Complete conversation history
 
+## Troubleshooting
+
+### TUI Interface Issues
+
+If you don't see the Start button or input field in the TUI version:
+
+1. **Check terminal size**: The TUI requires a minimum terminal width. Try maximizing your terminal window.
+
+2. **Verify Textual installation**:
+   ```bash
+   pip install --upgrade textual
+   python -m textual --version
+   ```
+
+3. **Test the TUI components**:
+   ```bash
+   python test_tui.py
+   ```
+   This will run a simple test to verify all UI components are rendering correctly.
+
+4. **Alternative terminals**: Some terminal emulators may have rendering issues. Try:
+   - On Linux: GNOME Terminal, Konsole, or Alacritty
+   - On macOS: iTerm2 or the default Terminal
+   - On Windows: Windows Terminal or WSL2
+
+5. **Color/theme issues**: If you can't see certain elements, try adjusting your terminal's color scheme or running with:
+   ```bash
+   NO_COLOR=1 python chat_tui.py
+   ```
+
 Enjoy your AI round-table discussions! 🎪🤖
+
+## Configuration
+
+### Bot Configuration
+You can modify `config.json` to:
+- Change bot personalities
+- Add or remove bots
+- Adjust response timeouts
+- Change Ollama URLs (for remote instances)
+
+### TUI Styling
+You can customize the TUI appearance by editing `chat_tui.css`:
+- Container sizes and borders
+- Color schemes
+- Text styles
+- Button dimensions
 
 ## Example session:
 
