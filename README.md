@@ -38,9 +38,7 @@ Enjoy your AI round-table discussions! 🎪🤖
 
 ## Example session:
 
-================================================================================
 🎪 AI Round-Table Discussion
-================================================================================
 
 Participants:
   🤖 Philosopher (gemma3:1b-it-qat) - You are a thoughtful philosopher who loves to expl...
