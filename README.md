@@ -8,7 +8,7 @@ A simple terminal application that hosts a chat between different AI models powe
 - Configurable Ollama instances and models
 - Round-table discussion format
 - Conversation history tracking
-- **Text-to-Speech (TTS)** - Uses espeak-ng to read bot responses aloud
+- **Session logging** - All conversations are saved to timestamped text files
 - Simple terminal interface
 
 ## Prerequisites
@@ -22,15 +22,16 @@ A simple terminal application that hosts a chat between different AI models powe
    ollama pull gemma3:1b-it-qat
    ```
 
-3. **TTS Dependencies** (Optional) - For text-to-speech functionality:
-   ```bash
-   sudo apt-get install espeak-ng
-   ```
-   Or for RHEL/CentOS/Fedora:
-   ```bash
-   sudo dnf install espeak-ng
-   ```
+3. **Python 3.7+** with pip
 
-4. **Python 3.7+** with pip
+## Session Logs
+
+All conversations are automatically saved to the `chat_logs/` directory with filenames like:
+- `session_20231215_143022.txt`
+
+Each log file contains:
+- Session start time and topic
+- Timestamped messages from each bot
+- Complete conversation history
 
 Enjoy your AI round-table discussions! 🎪🤖

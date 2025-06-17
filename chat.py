@@ -4,12 +4,9 @@ import json
 import requests
 import time
 import sys
-import subprocess
 import os
 from typing import Dict, List, Any, Optional, Tuple
-import threading
-import queue
-import concurrent.futures
+from datetime import datetime
 
 class OllamaBot:
     def __init__(self, name: str, ollama_url: str, model: str, personality: str):
@@ -69,12 +66,10 @@ class ChatRoom:
         self.config = self.load_config(config_path)
         self.bots = self.initialize_bots()
         self.conversation_history = []
-        self.tts_enabled = self.config.get("tts_enabled", True)
-        self.tts_voice = self.config.get("tts_voice", "en-US")
-        self.tts_speed = self.config.get("tts_speed", 1.0)
-        self.tts_queue = queue.Queue()
-        self.tts_thread = None
-        self.tts_active = False
+        self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_dir = "chat_logs"
+        self.ensure_log_directory()
+        self.log_file_path = os.path.join(self.log_dir, f"session_{self.session_id}.txt")
 
     def load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from JSON file"""
@@ -111,6 +106,25 @@ class ChatRoom:
             context += f"{entry['bot']}: {entry['message']}\n"
         return context
 
+    def ensure_log_directory(self):
+        """Ensure the log directory exists"""
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+
+    def log_message(self, bot_name: str, message: str, is_topic: bool = False):
+        """Log a message to the session file"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(self.log_file_path, 'a', encoding='utf-8') as f:
+            if is_topic:
+                f.write(f"{'='*80}\n")
+                f.write(f"Session Started: {timestamp}\n")
+                f.write(f"Topic: {message}\n")
+                f.write(f"{'='*80}\n\n")
+            else:
+                f.write(f"[{timestamp}] {bot_name}:\n")
+                f.write(f"{message}\n")
+                f.write(f"{'-'*40}\n\n")
+
     def add_to_history(self, bot_name: str, message: str):
         """Add a message to the conversation history"""
         self.conversation_history.append({
@@ -118,173 +132,61 @@ class ChatRoom:
             "message": message,
             "timestamp": time.time()
         })
+        # Log the message to file (skip system messages)
+        if bot_name != "Moderator":
+            self.log_message(bot_name, message)
 
 
-
-    def speak_text(self, text: str, bot_name: str = ""):
-        """Use espeak-ng to speak the given text"""
-        if not self.tts_enabled:
-            return
-
-        # Clean the text for TTS
-        clean_text = text.replace("[Error:", "Error:").replace("]", "").replace("*", "")
-        speed = int(150 * self.tts_speed)
-
-        # Use espeak-ng to speak directly
-        cmd = [
-            "espeak-ng",
-            "-v", "en-US",
-            "-s", str(speed),
-            clean_text
-        ]
-
-        subprocess.run(cmd, capture_output=True)
-
-    def tts_worker(self):
-        """Worker thread for processing TTS queue"""
-        while self.tts_active:
-            try:
-                # Wait for TTS task with timeout
-                task = self.tts_queue.get(timeout=1)
-                if task is None:  # Shutdown signal
-                    break
-
-                text, bot_name = task
-                self.speak_text(text, bot_name)
-                self.tts_queue.task_done()
-            except queue.Empty:
-                continue
-            except Exception as e:
-                print(f"\n[TTS Error: {e}]")
-                self.tts_queue.task_done()
-
-    def queue_tts(self, text: str, bot_name: str = ""):
-        """Queue text for TTS playback"""
-        if self.tts_enabled and text and not text.startswith("[Error:"):
-            self.tts_queue.put((text, bot_name))
-
-    def start_tts_thread(self):
-        """Start the TTS worker thread"""
-        if self.tts_enabled and not self.tts_active:
-            self.tts_active = True
-            self.tts_thread = threading.Thread(target=self.tts_worker, daemon=True)
-            self.tts_thread.start()
-
-    def stop_tts_thread(self):
-        """Stop the TTS worker thread"""
-        if self.tts_active:
-            self.tts_active = False
-            self.tts_queue.put(None)  # Shutdown signal
-            if self.tts_thread:
-                self.tts_thread.join(timeout=5)
-
-    def wait_for_tts_completion(self):
-        """Wait for all queued TTS to complete"""
-        if self.tts_enabled:
-            self.tts_queue.join()
-
-    def generate_bot_response(self, bot: OllamaBot, context: str, timeout: int) -> Tuple[str, float]:
-        """Generate response for a single bot"""
-        start_time = time.time()
-        response = bot.generate_response_stream(
-            self.config["system_prompt"],
-            context,
-            timeout
-        )
-        response_time = time.time() - start_time
-
-        # Ensure response is complete before returning
-        if response and not response.startswith("[Error:"):
-            # Small buffer to ensure streaming is fully complete
-            time.sleep(0.2)
-
-        return response, response_time
 
     def start_discussion(self, topic: str):
         """Start the round-table discussion"""
         print(f"\n🎯 Discussion Topic: {topic}")
+        print(f"💾 Logging to: {self.log_file_path}")
         print("Starting continuous discussion...")
         print("Press Ctrl+C to exit\n")
+
+        # Log the topic
+        self.log_message("", topic, is_topic=True)
 
         # Add topic to conversation history
         self.add_to_history("Moderator", f"Today's discussion topic is: {topic}")
 
         timeout = self.config.get("response_timeout", 30)
-
-        # Start TTS thread
-        self.start_tts_thread()
+        bot_index = 0
 
         try:
-            # Use ThreadPoolExecutor for continuous parallel generation
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                future_response = None
-                bot_index = 0
+            while True:
+                bot = self.bots[bot_index]
+                print(f"🤖 {bot.name}: ", end='', flush=True)
 
-                while True:
-                    bot = self.bots[bot_index]
+                # Get conversation context
+                context = self.get_conversation_context()
 
-                    # Check if we have a pre-generated response
-                    if future_response is not None:
-                        # Wait for pre-generated response
-                        try:
-                            response, response_time = future_response.result(timeout=1)
-                            print(f"   (Response time: {response_time:.1f}s)")
-                        except concurrent.futures.TimeoutError:
-                            print(f"   ⚠️  Pre-generation timed out, generating now...")
-                            print(f"🤖 {bot.name}: ", end='', flush=True)
-                            context = self.get_conversation_context()
-                            response, response_time = self.generate_bot_response(bot, context, timeout)
-                            print(f"   (Response time: {response_time:.1f}s)")
-                    else:
-                        # Generate response normally
-                        print(f"🤖 {bot.name}: ", end='', flush=True)
-                        context = self.get_conversation_context()
-                        response, response_time = self.generate_bot_response(bot, context, timeout)
-                        print(f"   (Response time: {response_time:.1f}s)")
+                # Generate response
+                start_time = time.time()
+                response = bot.generate_response_stream(
+                    self.config["system_prompt"],
+                    context,
+                    timeout
+                )
+                response_time = time.time() - start_time
 
-                    # Add to conversation history
-                    self.add_to_history(bot.name, response)
+                print(f"   (Response time: {response_time:.1f}s)")
 
-                    # Queue TTS for current response
-                    if response and not response.startswith("[Error:"):
-                        print("   🔊 Speaking...")
-                        self.queue_tts(response, bot.name)
+                # Add to conversation history (this also logs to file)
+                self.add_to_history(bot.name, response)
 
-                    # Determine next bot (circular)
-                    next_bot_index = (bot_index + 1) % len(self.bots)
-                    next_bot = self.bots[next_bot_index]
+                # Move to next bot (circular)
+                bot_index = (bot_index + 1) % len(self.bots)
 
-                    # Start generating next bot's response in parallel
-                    print(f"   ⏳ Pre-generating response for {next_bot.name}...")
-
-                    # Get updated context for next bot
-                    next_context = self.get_conversation_context()
-
-                    # Submit next generation task
-                    future_response = executor.submit(
-                        self.generate_bot_response,
-                        next_bot,
-                        next_context,
-                        timeout
-                    )
-
-                    # Wait for current TTS to complete before next bot speaks
-                    self.wait_for_tts_completion()
-
-                    # Print next bot's name in preparation
-                    print(f"\n\n🤖 {next_bot.name}: ", end='', flush=True)
-
-                    # Move to next bot
-                    bot_index = next_bot_index
-
-                    # Small delay between bots
-                    time.sleep(0.2)
+                # Small delay between responses
+                time.sleep(1)
+                print()  # Add spacing between responses
 
         except KeyboardInterrupt:
-            print(f"\n\nDiscussion interrupted. Shutting down gracefully...")
+            print(f"\n\nDiscussion interrupted.")
+            print(f"💾 Chat log saved to: {self.log_file_path}")
         finally:
-            # Stop TTS thread
-            self.stop_tts_thread()
             print("Goodbye!")
 
 def main():
@@ -307,11 +209,9 @@ def main():
         print(f"  🤖 {bot.name} ({bot.model}) - {bot.personality[:50]}...")
     print()
 
-    # Display TTS status
-    if chat_room.tts_enabled:
-        print(f"🔊 TTS: Enabled (Voice: {chat_room.tts_voice})")
-    else:
-        print("🔇 TTS: Disabled")
+    # Display logging info
+    print(f"💾 Session ID: {chat_room.session_id}")
+    print(f"📁 Logs directory: {chat_room.log_dir}/")
     print()
 
     # Get discussion topic from user
