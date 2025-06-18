@@ -9,7 +9,8 @@ Available in two versions:
 
 ## Features
 
-- 3 AI bots with different personalities (Philosopher, Scientist, Artist)
+- 4 AI bots with different personalities (Philosopher, Scientist, Artist, Businessman)
+- **Enhanced discussion dynamics**: Bots now challenge each other, expand ideas, and move conversations forward
 - Configurable Ollama instances and models
 - Round-table discussion format
 - Conversation history tracking
@@ -80,6 +81,14 @@ During a discussion, you can steer the conversation in new directions:
 
 The bots will maintain their conversation history and incorporate the new direction seamlessly.
 
+### Discussion Quality Tips
+
+For the best discussions:
+1. **Start with open-ended topics** that allow multiple perspectives
+2. **Use topic updates** to steer conversations when they stagnate
+3. **Let disagreements play out** - the bots are designed to argue constructively
+4. **Watch for consensus moments** - bots will pivot to new aspects after agreement
+
 ## Session Logs
 
 All conversations are automatically saved to the `chat_logs/` directory with filenames like:
@@ -130,6 +139,34 @@ You can modify `config.json` to:
 - Add or remove bots
 - Adjust response timeouts
 - Change Ollama URLs (for remote instances)
+
+### Enhanced Discussion Mode
+The bots are now configured to:
+- **Challenge assumptions** rather than simply agreeing
+- **Expand topics** from their unique perspectives
+- **Argue constructively** when they disagree
+- **Move discussions forward** after reaching consensus on specific points
+- **Ask probing questions** to deepen the conversation
+
+The default configuration includes:
+- **Philosopher**: Challenges conventional wisdom and explores paradoxes
+- **Scientist**: Demands evidence and challenges claims with data
+- **Artist**: Values intuition and subjective experience
+- **Businessman**: Focuses on value creation, ROI, and market opportunities
+
+### Extended Configuration
+For even richer discussions, try `config_extended.json` which includes 6 diverse perspectives:
+- **Philosopher**: Challenges conventional wisdom and explores paradoxes
+- **Scientist**: Demands evidence and challenges claims with data
+- **Artist**: Values intuition and subjective experience
+- **Historian**: Contextualizes discussions within historical patterns
+- **Technologist**: Examines technological implications and systems thinking
+- **Psychologist**: Analyzes cognitive biases and emotional drivers
+
+To use the extended configuration:
+```bash
+python chat_tui.py config_extended.json
+```
 
 ### TUI Styling
 You can customize the TUI appearance by editing `chat_tui.css`:

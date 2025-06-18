@@ -5,6 +5,7 @@ import requests
 import time
 import os
 import asyncio
+import sys
 from typing import Dict, List, Any
 from datetime import datetime
 from pathlib import Path
@@ -405,7 +406,15 @@ class ChatTUI(App):
 
 def main():
     """Main function to run the TUI application"""
-    app = ChatTUI()
+    # Check for command-line argument for config file
+    config_file = "config.json"
+    if len(sys.argv) > 1:
+        config_file = sys.argv[1]
+        if not os.path.exists(config_file):
+            print(f"Error: Configuration file '{config_file}' not found.")
+            sys.exit(1)
+
+    app = ChatTUI(config_path=config_file)
     app.run()
 
 
